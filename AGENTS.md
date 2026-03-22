@@ -87,6 +87,84 @@ RUN_ID=my_run DATA_PATH=./data/datasets/fineweb10B_sp1024 \
 There is no test suite or linter configured. Validation is the `val_bpb` metric
 printed at the end of each training run (`final_int8_zlib_roundtrip` lines).
 
+## Current Systems-Only Status
+
+- `train_gpt.py` already includes the main confirmed systems-only wins from the
+  March 21-22 pass:
+  - `FUSE_BATCH_TRANSFER=1` is the default and was the largest measured H100
+    throughput win.
+  - `ATTENTION_IMPL=fa3` is supported when `flash-attn` is installed; it is a
+    real but secondary win.
+  - `SKIP_FINAL_EVAL=1` exists only as a throughput-benchmark escape hatch.
+- `torch.compile` remains part of the working baseline. Disabling the broader
+  compiled training path was clearly harmful.
+- The following ideas were already tried and did not justify keeping in the
+  cleaned baseline: `PIN_SHARD_MEMORY=1`, `SDPA_BACKEND=cudnn`, compile mode
+  variants such as `reduce-overhead` / `max-autotune`, and disabling Muon
+  compile.
+- Credible systems-only items that are still not landed: packed QKV, async /
+  double-buffered batch prefetch, DDP `static_graph=True` /
+  `gradient_as_bucket_view=True`, persistent Muon flat buffer cleanup, exact
+  fused `lm_head + softcap + CE`, and selected Triton kernel ports.
+
+## Cloud / Infra Notes
+
+- Prefer AWS EC2 over SageMaker for systems benchmarking. EC2 is closer to the
+  bare-instance / RunPod workflow and gives better control over profiling,
+  drivers, process launch, storage, and DDP behavior.
+- As of 2026-03-22 in `us-east-1`:
+  - EC2 on-demand `All P instances` quota is `32`, which is enough for
+    `p5.4xlarge` (`1x H100`, `16` vCPUs).
+  - EC2 spot `All P Spot Instance Requests` quota is still `0`.
+  - SageMaker `ml.p5.4xlarge` and `ml.p5.48xlarge` training quotas are still
+    `0`.
+  - `p5.48xlarge` (`8x H100`, `192` vCPUs) is still blocked pending a larger
+    quota increase.
+- Recheck live quota with `tools/check_aws_h100_quota.sh` rather than trusting
+  stale notes or support emails alone.
+- The competition's final environment is RunPod `H100 SXM`. AWS `p5` is a good
+  H100-class proxy for exploration, but small systems wins should still be
+  confirmed on RunPod when possible.
+
+## Current Best Run Commands
+
+### 1xH100 compact systems sweep
+
+```bash
+python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 1
+RUN_PREFIX=aws_1xh100_ablate python3 tools/benchmark_systems.py \
+  --data-path ./data/datasets/fineweb10B_sp1024 \
+  --tokenizer-path ./data/tokenizers/fineweb_1024_bpe.model \
+  --variants baseline,fused_batch_transfer,fa3,fa3_fused_batch_transfer
+```
+
+### 1xH100 scored naive baseline run
+
+```bash
+RUN_ID=aws_naive_1xh100 DATA_PATH=./data/datasets/fineweb10B_sp1024 \
+  TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model VOCAB_SIZE=1024 \
+  ATTENTION_IMPL=sdpa FUSE_BATCH_TRANSFER=0 MAX_WALLCLOCK_SECONDS=600 \
+  VAL_LOSS_EVERY=0 torchrun --standalone --nproc_per_node=1 train_gpt.py
+```
+
+### 1xH100 scored current best systems stack
+
+```bash
+RUN_ID=aws_best_1xh100 DATA_PATH=./data/datasets/fineweb10B_sp1024 \
+  TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model VOCAB_SIZE=1024 \
+  ATTENTION_IMPL=fa3 FUSE_BATCH_TRANSFER=1 MAX_WALLCLOCK_SECONDS=600 \
+  VAL_LOSS_EVERY=0 torchrun --standalone --nproc_per_node=1 train_gpt.py
+```
+
+## External Tracking
+
+- `tracker.md` is a local snapshot from an external OpenClaw monitoring instance
+  that watches `openai/parameter-golf` for leaderboard movement, PR trends, and
+  notable open-PR ideas.
+- Treat that OpenClaw feed and `tracker.md` as read-only research context.
+  They are useful for prioritization, but not as something to edit in the main
+  modeling workflow unless the user explicitly asks.
+
 ## Hyperparameters
 
 All hyperparameters are set via **environment variables** (see `Hyperparameters` class
