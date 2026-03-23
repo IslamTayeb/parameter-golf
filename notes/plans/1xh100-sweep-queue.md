@@ -35,6 +35,17 @@ This is the active queue for short `1x H100` research screens.
 - `MUON_MOMENTUM=0.99` is the first cheap hyperparameter change that looked
   modestly positive on both early score and step time.
 - `MUON_BACKEND_STEPS=4` was faster but clearly worse in early quality.
+- `ORTHOGONAL_INIT=1` is mixed: better short-run pre-quant validation, but worse
+  final exact `val_bpb` in the first isolated screen.
+- `MUON_WEIGHT_DECAY=0.02` and `0.04` both looked slightly worse in the first
+  isolated screens.
+- `XSA_LAYERS=4` and `ROPE_FRACTION=0.5 USE_LN_SCALE=1` both looked clearly
+  negative on Hyperbolic in the first screens.
+- `PACKED_QKV=1` and `PACKED_QKV=1 PERSISTENT_MUON_BUFFER=1` give real speed
+  wins, but the first isolated screens were worse in final exact `val_bpb`.
+- The strongest `60s` combo was `ORTHOGONAL_INIT=1 PACKED_QKV=1
+  PERSISTENT_MUON_BUFFER=1 MUON_MOMENTUM=0.99`, but its `600s` confirmation run
+  still lost to the strict best-stack control.
 
 ## Next ordered queue
 
@@ -98,6 +109,8 @@ Only do these once the short modeling queue is no longer the highest-return path
 
 - do not keep rescreening raw `11L` / raw `3x MLP` in isolation
 - do not promote `MUON_BACKEND_STEPS=4` on current evidence
+- do not promote `PACKED_QKV`-based combos again without a much stronger repeated
+  short-run case
 - do not spend time on Triton/CUDA kernel work before the cheaper modeling queue
 - do not jump into int5/int6 + zstd until we have a stronger base-model direction
 

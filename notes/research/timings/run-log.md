@@ -40,6 +40,14 @@ not have to reconstruct the story from terminal scrollback.
 | 2026-03-23 | Hyperbolic `1x H100 SXM5` | research_60s | `MUON_WEIGHT_DECAY=0.04` | `60s` | `206` | `291.40 ms` | `2.09876479` | `logs/research_1xh100/research_260323_batch1_muon_wd_004.log` | also worse than matched control |
 | 2026-03-23 | Hyperbolic `1x H100 SXM5` | research_60s | `XSA_LAYERS=4` | `60s` | `202` | `298.05 ms` | `2.11906917` | `logs/research_1xh100/research_260323_batch1_xsa4.log` | clearly worse on both early score and speed in the first screen |
 | 2026-03-23 | Hyperbolic `1x H100 SXM5` | research_60s | `ROPE_FRACTION=0.5 USE_LN_SCALE=1` | `60s` | `202` | `298.23 ms` | `2.16055601` | `logs/research_1xh100/research_260323_batch1_rope50_ln.log` | clear negative first screen |
+| 2026-03-23 | Hyperbolic `1x H100 SXM5` | research_60s | `BF16_CE=1` | `60s` | `207` | `291.10 ms` | `2.09748597` | `logs/research_1xh100/research_260323_batch2_bf16_ce.log` | slightly worse than matched control |
+| 2026-03-23 | Hyperbolic `1x H100 SXM5` | research_60s | `PERSISTENT_MUON_BUFFER=1` | `60s` | `207` | `290.91 ms` | `2.10108798` | `logs/research_1xh100/research_260323_batch2_persistent_muon.log` | slightly worse than matched control |
+| 2026-03-23 | Hyperbolic `1x H100 SXM5` | research_60s | `PACKED_QKV=1` | `60s` | `212` | `284.01 ms` | `2.11164758` | `logs/research_1xh100/research_260323_batch2_packed_qkv.log` | clear speed win but worse quality |
+| 2026-03-23 | Hyperbolic `1x H100 SXM5` | research_60s | `PACKED_QKV=1 PERSISTENT_MUON_BUFFER=1` | `60s` | `212` | `283.18 ms` | `2.10624569` | `logs/research_1xh100/research_260323_batch2_packed_qkv_persistent.log` | fastest batch-2 variant but still worse than control |
+| 2026-03-23 | Hyperbolic `1x H100 SXM5` | research_60s | `ORTHOGONAL_INIT=1 MUON_MOMENTUM=0.99` | `60s` | `206` | `291.48 ms` | `2.09992849` | `logs/research_1xh100/research_260323_batch3_orth_mom99.log` | combo did not help |
+| 2026-03-23 | Hyperbolic `1x H100 SXM5` | research_60s | `PACKED_QKV=1 PERSISTENT_MUON_BUFFER=1 MUON_MOMENTUM=0.99` | `60s` | `212` | `282.99 ms` | `2.10529719` | `logs/research_1xh100/research_260323_batch3_packed_persist_mom99.log` | still worse than control despite speed |
+| 2026-03-23 | Hyperbolic `1x H100 SXM5` | research_60s | `ORTHOGONAL_INIT=1 PACKED_QKV=1 PERSISTENT_MUON_BUFFER=1 MUON_MOMENTUM=0.99` | `60s` | `212` | `283.08 ms` | `2.07125597` | `logs/research_1xh100/research_260323_batch3_orth_packed_persist_mom99.log` | strongest short-run combo signal |
+| 2026-03-23 | Hyperbolic `1x H100 SXM5` | promoted_600s | `ORTHOGONAL_INIT=1 PACKED_QKV=1 PERSISTENT_MUON_BUFFER=1 MUON_MOMENTUM=0.99` | `600s` | `2116` | `283.66 ms` | `1.30109663` | `logs/hyperbolic_strict/candidate_combo_600_260323_0851.log` | faster than strict best stack, but worse final score |
 
 ## Current lessons
 
@@ -59,6 +67,13 @@ not have to reconstruct the story from terminal scrollback.
 - Muon weight decay at `0.02` and `0.04` does not look good in the first `60s` screens.
 - XSA4 and partial-RoPE+LN-scale both looked clearly negative in the first Hyperbolic
   `60s` screens, so they should not be promoted without a stronger reason.
+- BF16 cross entropy and persistent Muon buffer each looked slightly worse in their
+  first isolated `60s` screens on Hyperbolic.
+- Packed QKV gives a real short-run speed win, but the current evidence says that win
+  comes with worse quality unless paired with additional changes that we have not yet
+  found to hold up at `600s`.
+- The strongest `60s` combo signal from the third batch did not survive a `600s`
+  confirmation run, so short-run combo wins still need careful promotion discipline.
 - `MUON_BACKEND_STEPS=4` improves speed but appears to hurt early quality enough that
   it should not be promoted alone.
 - For future hyperparameter-only ideas, the default should be multiple `60s` repeats

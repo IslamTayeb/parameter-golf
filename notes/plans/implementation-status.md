@@ -38,10 +38,10 @@ Status labels:
 |---|---|---|
 | DDP bucket tuning + `static_graph` | `pending` | not started yet |
 | Turbo-Muon / 4 NS steps | `screened` | faster at `60s`, but clearly worse early bpb |
-| packed QKV | `pending` | not started yet |
-| persistent Muon buffer | `pending` | not started yet |
+| packed QKV | `screened` | faster in `60s`, but worse in quality and worse when promoted in combo |
+| persistent Muon buffer | `screened` | neutral-to-worse alone; helped speed in packed-QKV combo but not final bpb |
 | verify softcap+CE fusion | `pending` | not started yet |
-| BF16 cross entropy | `pending` | nanogpt-backed easy systems item; not screened yet |
+| BF16 cross entropy | `screened` | first `60s` screen looked slightly worse on Hyperbolic |
 | async prefetch | `pending` | not started yet |
 
 ## Phase 3 - Eval stack
@@ -65,7 +65,5 @@ Status labels:
 - For pure hyperparameter ideas, require repeated short screens before any future
   `600s` promotion.
 - Focus next on the first cheap code-change batch:
-  - orthogonal init
-  - Muon weight decay
-  - XSA
-  - partial RoPE + LN scale
+  - move from isolated screens to only the most justified follow-up combinations
+  - avoid promoting new `600s` candidates without a stronger repeated short-run case
