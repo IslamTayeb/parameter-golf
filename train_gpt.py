@@ -89,6 +89,11 @@ class Hyperparameters:
     orthogonal_init = bool(int(os.environ.get("ORTHOGONAL_INIT", "0")))
     packed_qkv = bool(int(os.environ.get("PACKED_QKV", "0")))
     bf16_ce = bool(int(os.environ.get("BF16_CE", "0")))
+    ddp_static_graph = bool(int(os.environ.get("DDP_STATIC_GRAPH", "0")))
+    ddp_gradient_as_bucket_view = bool(
+        int(os.environ.get("DDP_GRADIENT_AS_BUCKET_VIEW", "0"))
+    )
+    ddp_bucket_cap_mb = int(os.environ.get("DDP_BUCKET_CAP_MB", 25))
 
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
@@ -656,7 +661,9 @@ class Rotary(nn.Module):
         self._cos_cached: Tensor | None = None
         self._sin_cached: Tensor | None = None
 
-    def forward(self, seq_len: int, device: torch.device, dtype: torch.dtype) -> tuple[Tensor, Tensor]:
+    def forward(
+        self, seq_len: int, device: torch.device, dtype: torch.dtype
+    ) -> tuple[Tensor, Tensor]:
         if (
             self._cos_cached is None
             or self._sin_cached is None
@@ -678,7 +685,13 @@ def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
 
 
 def apply_rotary_partial(x: Tensor, cos: Tensor, sin: Tensor, rope_dim: int) -> Tensor:
-    return apply_rotary_emb(x, cos, sin) if rope_dim == x.size(-1) else torch.cat((apply_rotary_emb(x[..., :rope_dim], cos, sin), x[..., rope_dim:]), dim=-1)
+    return (
+        apply_rotary_emb(x, cos, sin)
+        if rope_dim == x.size(-1)
+        else torch.cat(
+            (apply_rotary_emb(x[..., :rope_dim], cos, sin), x[..., rope_dim:]), dim=-1
+        )
+    )
 
 
 class CausalSelfAttention(nn.Module):
@@ -716,7 +729,9 @@ class CausalSelfAttention(nn.Module):
         self.rope_dim = max(2, int(self.head_dim * rope_fraction) // 2 * 2)
         kv_dim = self.num_kv_heads * self.head_dim
         self.packed_qkv = packed_qkv
-        self.c_qkv = CastedLinear(dim, dim + 2 * kv_dim, bias=False) if packed_qkv else None
+        self.c_qkv = (
+            CastedLinear(dim, dim + 2 * kv_dim, bias=False) if packed_qkv else None
+        )
         self.c_q = CastedLinear(dim, dim, bias=False) if not packed_qkv else None
         self.c_k = CastedLinear(dim, kv_dim, bias=False) if not packed_qkv else None
         self.c_v = CastedLinear(dim, kv_dim, bias=False) if not packed_qkv else None
@@ -725,14 +740,25 @@ class CausalSelfAttention(nn.Module):
         self.q_gain = nn.Parameter(
             torch.full((num_heads,), qk_gain_init, dtype=torch.float32)
         )
-        self.head_scale = nn.Parameter(torch.ones(num_heads, dtype=torch.float32)) if use_ln_scale else None
+        self.head_scale = (
+            nn.Parameter(torch.ones(num_heads, dtype=torch.float32))
+            if use_ln_scale
+            else None
+        )
         self.rotary = Rotary(self.rope_dim, base=rope_base)
 
     def forward(self, x: Tensor) -> Tensor:
         bsz, seqlen, dim = x.shape
         if self.c_qkv is not None:
             qkv = self.c_qkv(x)
-            q_proj, k_proj, v_proj = qkv.split((dim, self.num_kv_heads * self.head_dim, self.num_kv_heads * self.head_dim), dim=-1)
+            q_proj, k_proj, v_proj = qkv.split(
+                (
+                    dim,
+                    self.num_kv_heads * self.head_dim,
+                    self.num_kv_heads * self.head_dim,
+                ),
+                dim=-1,
+            )
         else:
             if self.c_q is None or self.c_k is None or self.c_v is None:
                 raise RuntimeError("QKV projections are not initialized")
@@ -1077,9 +1103,7 @@ def main() -> None:
         f"attention_impl:{args.attention_impl} fuse_batch_transfer:{int(args.fuse_batch_transfer)}"
     )
     log0(
-        f"orthogonal_init:{int(args.orthogonal_init)} muon_weight_decay:{args.muon_weight_decay:.4f} "
-        f"xsa_layers:{args.xsa_layers} rope_fraction:{args.rope_fraction:.2f} use_ln_scale:{int(args.use_ln_scale)} "
-        f"packed_qkv:{int(args.packed_qkv)} bf16_ce:{int(args.bf16_ce)} persistent_muon_buffer:{int(args.persistent_muon_buffer)}"
+        f"orthogonal_init:{int(args.orthogonal_init)} muon_weight_decay:{args.muon_weight_decay:.4f} xsa_layers:{args.xsa_layers} rope_fraction:{args.rope_fraction:.2f} use_ln_scale:{int(args.use_ln_scale)} packed_qkv:{int(args.packed_qkv)} bf16_ce:{int(args.bf16_ce)} persistent_muon_buffer:{int(args.persistent_muon_buffer)} ddp_static_graph:{int(args.ddp_static_graph)} ddp_gradient_as_bucket_view:{int(args.ddp_gradient_as_bucket_view)} ddp_bucket_cap_mb:{args.ddp_bucket_cap_mb}"
     )
 
     # -----------------------------
@@ -1116,7 +1140,14 @@ def main() -> None:
     restore_low_dim_params_to_fp32(base_model)
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     model: nn.Module = (
-        DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False)
+        DDP(
+            compiled_model,
+            device_ids=[local_rank],
+            broadcast_buffers=False,
+            static_graph=args.ddp_static_graph,
+            gradient_as_bucket_view=args.ddp_gradient_as_bucket_view,
+            bucket_cap_mb=args.ddp_bucket_cap_mb,
+        )
         if distributed
         else compiled_model
     )

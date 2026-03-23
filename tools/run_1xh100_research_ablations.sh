@@ -13,6 +13,7 @@ MAX_WALLCLOCK_SECONDS="${MAX_WALLCLOCK_SECONDS:-60}"
 VAL_LOSS_EVERY="${VAL_LOSS_EVERY:-0}"
 ATTENTION_IMPL="${ATTENTION_IMPL:-fa3}"
 FUSE_BATCH_TRANSFER="${FUSE_BATCH_TRANSFER:-1}"
+NPROC_PER_NODE="${NPROC_PER_NODE:-1}"
 LOG_DIR="${LOG_DIR:-$ROOT_DIR/logs/research_1xh100}"
 VARIANTS="${VARIANTS:-control,11l,mlp3x,11l_mlp3x}"
 
@@ -48,7 +49,7 @@ run_variant() {
       ATTENTION_IMPL="$ATTENTION_IMPL" \
       FUSE_BATCH_TRANSFER="$FUSE_BATCH_TRANSFER" \
       "$@" \
-      "$TORCHRUN_BIN" --standalone --nproc_per_node=1 train_gpt.py
+      "$TORCHRUN_BIN" --standalone --nproc_per_node="$NPROC_PER_NODE" train_gpt.py
   ) 2>&1 | tee "$log_path"
 
   "$PYTHON_BIN" - "$log_path" <<'PY'
@@ -118,6 +119,15 @@ for variant in "${variant_list[@]}"; do
       ;;
     packed_qkv_persistent)
       run_variant packed_qkv_persistent PACKED_QKV=1 PERSISTENT_MUON_BUFFER=1
+      ;;
+    ddp_static)
+      run_variant ddp_static DDP_STATIC_GRAPH=1 DDP_GRADIENT_AS_BUCKET_VIEW=1 DDP_BUCKET_CAP_MB=1
+      ;;
+    ddp_static_mom99)
+      run_variant ddp_static_mom99 DDP_STATIC_GRAPH=1 DDP_GRADIENT_AS_BUCKET_VIEW=1 DDP_BUCKET_CAP_MB=1 MUON_MOMENTUM=0.99
+      ;;
+    ddp_static_packed_persist)
+      run_variant ddp_static_packed_persist DDP_STATIC_GRAPH=1 DDP_GRADIENT_AS_BUCKET_VIEW=1 DDP_BUCKET_CAP_MB=1 PACKED_QKV=1 PERSISTENT_MUON_BUFFER=1
       ;;
     *)
       printf 'Unknown variant: %s\n' "$variant" >&2
