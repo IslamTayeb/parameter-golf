@@ -34,6 +34,7 @@ not have to reconstruct the story from terminal scrollback.
 | 2026-03-23 | Hyperbolic `1x H100 SXM5` | research_60s | `MUON_BACKEND_STEPS=4` | `60s` | `210` | `285.98 ms` | `2.16387482` | `logs/research_1xh100/research_260323_optim_ns4.log` | faster but clearly worse early bpb |
 | 2026-03-23 | Hyperbolic `1x H100 SXM5` | research_60s | `MUON_MOMENTUM=0.99 MUON_BACKEND_STEPS=4` | `60s` | `210` | `286.74 ms` | `2.16443051` | `logs/research_1xh100/research_260323_optim_mom99_ns4.log` | no rescue; still worse than control |
 | 2026-03-23 | Hyperbolic `1x H100 SXM5` | promoted_600s | `ATTENTION_IMPL=fa3 FUSE_BATCH_TRANSFER=1 MUON_MOMENTUM=0.99` | `600s` | cancelled | cancelled | cancelled | `/root/parameter-golf/logs/hyperbolic_strict/candidate_best_mom99_260323_0551.log` | cancelled after deciding pure hyperparameter ideas should get repeated `60s` screens instead |
+| 2026-03-23 | Hyperbolic `1x H100 SXM5` | research_60s_repeat | control vs `MUON_MOMENTUM=0.99` across 5 seeds | `5x60s` each | `206-208` | control `290.96 ms`, mom99 `290.58 ms` | control `2.091251822`, mom99 `2.087438582` | `notes/research/timings/data/muon-momentum-repeat-2026-03-23.json` | repeated short screens still favor `MUON_MOMENTUM=0.99`, but only modestly |
 
 ## Current lessons
 
@@ -46,6 +47,8 @@ not have to reconstruct the story from terminal scrollback.
 - `MUON_MOMENTUM=0.99` is the first cheap hyperparameter change that looked modestly
   positive on both early score and speed, but it should still be judged by many
   repeated `60s` runs before any future `600s` promotion.
+- Repeating control vs `MUON_MOMENTUM=0.99` across 5 seeds still favors `0.99`, but the
+  edge is small enough that it should be treated as a mild signal, not a lock.
 - `MUON_BACKEND_STEPS=4` improves speed but appears to hurt early quality enough that
   it should not be promoted alone.
 - For future hyperparameter-only ideas, the default should be multiple `60s` repeats

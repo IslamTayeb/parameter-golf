@@ -82,7 +82,11 @@ class Hyperparameters:
     mlp_mult = int(os.environ.get("MLP_MULT", 2))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
+    rope_fraction = float(os.environ.get("ROPE_FRACTION", 1.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
+    use_ln_scale = bool(int(os.environ.get("USE_LN_SCALE", "0")))
+    xsa_layers = int(os.environ.get("XSA_LAYERS", 0))
+    orthogonal_init = bool(int(os.environ.get("ORTHOGONAL_INIT", "0")))
 
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
@@ -101,6 +105,7 @@ class Hyperparameters:
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
+    muon_weight_decay = float(os.environ.get("MUON_WEIGHT_DECAY", 0.0))
 
 
 # -----------------------------
@@ -137,11 +142,16 @@ class Muon(torch.optim.Optimizer):
         momentum: float,
         backend_steps: int,
         nesterov: bool = True,
+        weight_decay: float = 0.0,
     ):
         super().__init__(
             params,
             dict(
-                lr=lr, momentum=momentum, backend_steps=backend_steps, nesterov=nesterov
+                lr=lr,
+                momentum=momentum,
+                backend_steps=backend_steps,
+                nesterov=nesterov,
+                weight_decay=weight_decay,
             ),
         )
 
@@ -164,6 +174,7 @@ class Muon(torch.optim.Optimizer):
             momentum = group["momentum"]
             backend_steps = group["backend_steps"]
             nesterov = group["nesterov"]
+            weight_decay = group["weight_decay"]
 
             total_params = sum(int(p.numel()) for p in params)
             updates_flat = torch.zeros(
@@ -194,6 +205,8 @@ class Muon(torch.optim.Optimizer):
             for p in params:
                 g = updates_flat[curr : curr + p.numel()].view_as(p).to(dtype=p.dtype)
                 p.add_(g, alpha=-lr)
+                if weight_decay > 0:
+                    p.add_(p, alpha=-lr * weight_decay)
                 curr += p.numel()
 
         return loss
@@ -653,6 +666,16 @@ def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
     return torch.cat((x1 * cos + x2 * sin, x1 * (-sin) + x2 * cos), dim=-1)
 
 
+def apply_rotary_partial(x: Tensor, cos: Tensor, sin: Tensor, rope_dim: int) -> Tensor:
+    return (
+        apply_rotary_emb(x, cos, sin)
+        if rope_dim == x.size(-1)
+        else torch.cat(
+            (apply_rotary_emb(x[..., :rope_dim], cos, sin), x[..., rope_dim:]), dim=-1
+        )
+    )
+
+
 class CausalSelfAttention(nn.Module):
     def __init__(
         self,
@@ -660,8 +683,11 @@ class CausalSelfAttention(nn.Module):
         num_heads: int,
         num_kv_heads: int,
         rope_base: float,
+        rope_fraction: float,
         qk_gain_init: float,
         attention_impl: str,
+        use_ln_scale: bool,
+        use_xsa: bool,
     ):
         super().__init__()
         if dim % num_heads != 0:
@@ -676,8 +702,12 @@ class CausalSelfAttention(nn.Module):
         self.num_kv_heads = num_kv_heads
         self.head_dim = dim // num_heads
         self.attention_impl = attention_impl
+        self.use_xsa = use_xsa
         if self.head_dim % 2 != 0:
             raise ValueError("head_dim must be even for RoPE")
+        if not 0.0 < rope_fraction <= 1.0:
+            raise ValueError(f"ROPE_FRACTION must be in (0, 1], got {rope_fraction}")
+        self.rope_dim = max(2, int(self.head_dim * rope_fraction) // 2 * 2)
         kv_dim = self.num_kv_heads * self.head_dim
         self.c_q = CastedLinear(dim, dim, bias=False)
         self.c_k = CastedLinear(dim, kv_dim, bias=False)
@@ -687,7 +717,12 @@ class CausalSelfAttention(nn.Module):
         self.q_gain = nn.Parameter(
             torch.full((num_heads,), qk_gain_init, dtype=torch.float32)
         )
-        self.rotary = Rotary(self.head_dim, base=rope_base)
+        self.head_scale = (
+            nn.Parameter(torch.ones(num_heads, dtype=torch.float32))
+            if use_ln_scale
+            else None
+        )
+        self.rotary = Rotary(self.rope_dim, base=rope_base)
 
     def forward(self, x: Tensor) -> Tensor:
         bsz, seqlen, dim = x.shape
@@ -695,12 +730,19 @@ class CausalSelfAttention(nn.Module):
             q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim)
             k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
             v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
+            v_xsa = v
             q = F.rms_norm(q, (q.size(-1),))
             k = F.rms_norm(k, (k.size(-1),))
             cos, sin = self.rotary(seqlen, x.device, q.dtype)
-            q = apply_rotary_emb(q, cos.transpose(1, 2), sin.transpose(1, 2))
-            k = apply_rotary_emb(k, cos.transpose(1, 2), sin.transpose(1, 2))
+            q = apply_rotary_partial(
+                q, cos.transpose(1, 2), sin.transpose(1, 2), self.rope_dim
+            )
+            k = apply_rotary_partial(
+                k, cos.transpose(1, 2), sin.transpose(1, 2), self.rope_dim
+            )
             q = q * self.q_gain.to(dtype=q.dtype)[None, None, :, None]
+            if self.head_scale is not None:
+                q = q * self.head_scale.to(dtype=q.dtype)[None, None, :, None]
             y = flash_attn_3_func(q, k, v, causal=True)
             y = y.reshape(bsz, seqlen, dim)
         else:
@@ -719,12 +761,15 @@ class CausalSelfAttention(nn.Module):
                 .reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
                 .transpose(1, 2)
             )
+            v_xsa = v.transpose(1, 2)
             q = F.rms_norm(q, (q.size(-1),))
             k = F.rms_norm(k, (k.size(-1),))
             cos, sin = self.rotary(seqlen, x.device, q.dtype)
-            q = apply_rotary_emb(q, cos, sin)
-            k = apply_rotary_emb(k, cos, sin)
+            q = apply_rotary_partial(q, cos, sin, self.rope_dim)
+            k = apply_rotary_partial(k, cos, sin, self.rope_dim)
             q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
+            if self.head_scale is not None:
+                q = q * self.head_scale.to(dtype=q.dtype)[None, :, None, None]
             y = F.scaled_dot_product_attention(
                 q,
                 k,
@@ -734,6 +779,12 @@ class CausalSelfAttention(nn.Module):
                 enable_gqa=(self.num_kv_heads != self.num_heads),
             )
             y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
+        if self.use_xsa:
+            v_flat = v_xsa.repeat_interleave(
+                self.num_heads // self.num_kv_heads, dim=2
+            ).reshape(bsz, seqlen, dim)
+            v_norm = F.normalize(v_flat, dim=-1)
+            y = y - (y * v_norm).sum(dim=-1, keepdim=True) * v_norm
         return self.proj(y)
 
 
@@ -759,8 +810,11 @@ class Block(nn.Module):
         num_kv_heads: int,
         mlp_mult: int,
         rope_base: float,
+        rope_fraction: float,
         qk_gain_init: float,
         attention_impl: str,
+        use_ln_scale: bool,
+        use_xsa: bool,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
@@ -770,8 +824,11 @@ class Block(nn.Module):
             num_heads,
             num_kv_heads,
             rope_base,
+            rope_fraction,
             qk_gain_init,
             attention_impl,
+            use_ln_scale,
+            use_xsa,
         )
         self.mlp = MLP(dim, mlp_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
@@ -804,8 +861,12 @@ class GPT(nn.Module):
         tied_embed_init_std: float,
         logit_softcap: float,
         rope_base: float,
+        rope_fraction: float,
         qk_gain_init: float,
         attention_impl: str,
+        use_ln_scale: bool,
+        xsa_layers: int,
+        orthogonal_init: bool,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -813,6 +874,7 @@ class GPT(nn.Module):
         self.tie_embeddings = tie_embeddings
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
+        self.orthogonal_init = orthogonal_init
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
@@ -828,8 +890,11 @@ class GPT(nn.Module):
                     num_kv_heads,
                     mlp_mult,
                     rope_base,
+                    rope_fraction,
                     qk_gain_init,
                     attention_impl,
+                    use_ln_scale,
+                    i >= num_layers - xsa_layers,
                 )
                 for i in range(num_layers)
             ]
@@ -846,8 +911,11 @@ class GPT(nn.Module):
         if self.tie_embeddings:
             nn.init.normal_(self.tok_emb.weight, mean=0.0, std=self.tied_embed_init_std)
         for module in self.modules():
-            if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
-                nn.init.zeros_(module.weight)
+            if isinstance(module, nn.Linear):
+                if getattr(module, "_zero_init", False):
+                    nn.init.zeros_(module.weight)
+                elif self.orthogonal_init and module.weight.ndim == 2:
+                    nn.init.orthogonal_(module.weight)
 
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
         x = self.tok_emb(input_ids)
@@ -995,6 +1063,10 @@ def main() -> None:
     log0(
         f"attention_impl:{args.attention_impl} fuse_batch_transfer:{int(args.fuse_batch_transfer)}"
     )
+    log0(
+        f"orthogonal_init:{int(args.orthogonal_init)} muon_weight_decay:{args.muon_weight_decay:.4f} "
+        f"xsa_layers:{args.xsa_layers} rope_fraction:{args.rope_fraction:.2f} use_ln_scale:{int(args.use_ln_scale)}"
+    )
 
     # -----------------------------
     # MODEL + OPTIMIZER SETUP
@@ -1012,8 +1084,12 @@ def main() -> None:
             tied_embed_init_std=args.tied_embed_init_std,
             logit_softcap=args.logit_softcap,
             rope_base=args.rope_base,
+            rope_fraction=args.rope_fraction,
             qk_gain_init=args.qk_gain_init,
             attention_impl=args.attention_impl,
+            use_ln_scale=args.use_ln_scale,
+            xsa_layers=args.xsa_layers,
+            orthogonal_init=args.orthogonal_init,
         )
         .to(device)
         .bfloat16()
@@ -1061,6 +1137,7 @@ def main() -> None:
         lr=args.matrix_lr,
         momentum=args.muon_momentum,
         backend_steps=args.muon_backend_steps,
+        weight_decay=args.muon_weight_decay,
     )
     for group in optimizer_muon.param_groups:
         group["base_lr"] = args.matrix_lr

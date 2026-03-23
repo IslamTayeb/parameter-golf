@@ -1,0 +1,86 @@
+{
+  "runs": [
+    {
+      "file": "research_260323_repeat_control_seed1337.log",
+      "seed": 1337,
+      "variant": "control",
+      "step_avg_ms": 291.29,
+      "final_val_bpb": 2.09998343
+    },
+    {
+      "file": "research_260323_repeat_mom99_seed1337.log",
+      "seed": 1337,
+      "variant": "mom99",
+      "step_avg_ms": 290.2,
+      "final_val_bpb": 2.09049927
+    },
+    {
+      "file": "research_260323_repeat_control_seed1338.log",
+      "seed": 1338,
+      "variant": "control",
+      "step_avg_ms": 290.71,
+      "final_val_bpb": 2.08609675
+    },
+    {
+      "file": "research_260323_repeat_mom99_seed1338.log",
+      "seed": 1338,
+      "variant": "mom99",
+      "step_avg_ms": 290.73,
+      "final_val_bpb": 2.0852664
+    },
+    {
+      "file": "research_260323_repeat_control_seed1339.log",
+      "seed": 1339,
+      "variant": "control",
+      "step_avg_ms": 291.27,
+      "final_val_bpb": 2.09849117
+    },
+    {
+      "file": "research_260323_repeat_mom99_seed1339.log",
+      "seed": 1339,
+      "variant": "mom99",
+      "step_avg_ms": 289.88,
+      "final_val_bpb": 2.09113981
+    },
+    {
+      "file": "research_260323_repeat_control_seed1340.log",
+      "seed": 1340,
+      "variant": "control",
+      "step_avg_ms": 290.88,
+      "final_val_bpb": 2.09044211
+    },
+    {
+      "file": "research_260323_repeat_mom99_seed1340.log",
+      "seed": 1340,
+      "variant": "mom99",
+      "step_avg_ms": 291.05,
+      "final_val_bpb": 2.08612491
+    },
+    {
+      "file": "research_260323_repeat_control_seed1341.log",
+      "seed": 1341,
+      "variant": "control",
+      "step_avg_ms": 290.64,
+      "final_val_bpb": 2.08124565
+    },
+    {
+      "file": "research_260323_repeat_mom99_seed1341.log",
+      "seed": 1341,
+      "variant": "mom99",
+      "step_avg_ms": 291.05,
+      "final_val_bpb": 2.08416252
+    }
+  ],
+  "variant_summary": {
+    "control": {
+      "count": 5,
+      "mean_step_avg_ms": 290.95799999999997,
+      "mean_final_val_bpb": 2.091251822
+    },
+    "mom99": {
+      "count": 5,
+      "mean_step_avg_ms": 290.582,
+      "mean_final_val_bpb": 2.087438582
+    }
+  }
+}

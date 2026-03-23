@@ -83,6 +83,30 @@ for variant in "${variant_list[@]}"; do
     11l_mlp3x)
       run_variant 11l_mlp3x NUM_LAYERS=11 MLP_MULT=3
       ;;
+    mom99)
+      run_variant mom99 MUON_MOMENTUM=0.99
+      ;;
+    ns4)
+      run_variant ns4 MUON_BACKEND_STEPS=4
+      ;;
+    mom99_ns4)
+      run_variant mom99_ns4 MUON_MOMENTUM=0.99 MUON_BACKEND_STEPS=4
+      ;;
+    orthogonal_init)
+      run_variant orthogonal_init ORTHOGONAL_INIT=1
+      ;;
+    muon_wd_002)
+      run_variant muon_wd_002 MUON_WEIGHT_DECAY=0.02
+      ;;
+    muon_wd_004)
+      run_variant muon_wd_004 MUON_WEIGHT_DECAY=0.04
+      ;;
+    xsa4)
+      run_variant xsa4 XSA_LAYERS=4
+      ;;
+    rope50_ln)
+      run_variant rope50_ln ROPE_FRACTION=0.5 USE_LN_SCALE=1
+      ;;
     *)
       printf 'Unknown variant: %s\n' "$variant" >&2
       exit 1

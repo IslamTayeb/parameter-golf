@@ -43,5 +43,9 @@ work.
 - `logs/runpod_1xh100/`
 - `logs/aws_l40s/`
 
+Tracked JSON summaries live under:
+
+- `notes/research/timings/data/`
+
 These are local, richer than the note summaries, and are the first place to go
 when a number in the tracker needs to be verified.
