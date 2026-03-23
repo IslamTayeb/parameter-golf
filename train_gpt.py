@@ -87,6 +87,8 @@ class Hyperparameters:
     use_ln_scale = bool(int(os.environ.get("USE_LN_SCALE", "0")))
     xsa_layers = int(os.environ.get("XSA_LAYERS", 0))
     orthogonal_init = bool(int(os.environ.get("ORTHOGONAL_INIT", "0")))
+    packed_qkv = bool(int(os.environ.get("PACKED_QKV", "0")))
+    bf16_ce = bool(int(os.environ.get("BF16_CE", "0")))
 
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
@@ -106,14 +108,12 @@ class Hyperparameters:
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
     muon_weight_decay = float(os.environ.get("MUON_WEIGHT_DECAY", 0.0))
+    persistent_muon_buffer = bool(int(os.environ.get("PERSISTENT_MUON_BUFFER", "0")))
 
 
 # -----------------------------
 # MUON OPTIMIZER
 # -----------------------------
-#
-# As borrowed from modded-nanogpt
-# Background on Muon: https://kellerjordan.github.io/posts/muon/
 
 
 def zeropower_via_newtonschulz5(
@@ -143,7 +143,10 @@ class Muon(torch.optim.Optimizer):
         backend_steps: int,
         nesterov: bool = True,
         weight_decay: float = 0.0,
+        persistent_buffer: bool = False,
     ):
+        self._updates_flat: Tensor | None = None
+        self._persistent_buffer = persistent_buffer
         super().__init__(
             params,
             dict(
@@ -177,9 +180,19 @@ class Muon(torch.optim.Optimizer):
             weight_decay = group["weight_decay"]
 
             total_params = sum(int(p.numel()) for p in params)
-            updates_flat = torch.zeros(
-                total_params, device=params[0].device, dtype=torch.bfloat16
-            )
+            if (
+                self._persistent_buffer
+                and self._updates_flat is not None
+                and self._updates_flat.numel() == total_params
+            ):
+                updates_flat = self._updates_flat
+                updates_flat.zero_()
+            else:
+                updates_flat = torch.zeros(
+                    total_params, device=params[0].device, dtype=torch.bfloat16
+                )
+                if self._persistent_buffer:
+                    self._updates_flat = updates_flat
 
             curr = 0
             for i, p in enumerate(params):
@@ -643,9 +656,7 @@ class Rotary(nn.Module):
         self._cos_cached: Tensor | None = None
         self._sin_cached: Tensor | None = None
 
-    def forward(
-        self, seq_len: int, device: torch.device, dtype: torch.dtype
-    ) -> tuple[Tensor, Tensor]:
+    def forward(self, seq_len: int, device: torch.device, dtype: torch.dtype) -> tuple[Tensor, Tensor]:
         if (
             self._cos_cached is None
             or self._sin_cached is None
@@ -667,13 +678,7 @@ def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
 
 
 def apply_rotary_partial(x: Tensor, cos: Tensor, sin: Tensor, rope_dim: int) -> Tensor:
-    return (
-        apply_rotary_emb(x, cos, sin)
-        if rope_dim == x.size(-1)
-        else torch.cat(
-            (apply_rotary_emb(x[..., :rope_dim], cos, sin), x[..., rope_dim:]), dim=-1
-        )
-    )
+    return apply_rotary_emb(x, cos, sin) if rope_dim == x.size(-1) else torch.cat((apply_rotary_emb(x[..., :rope_dim], cos, sin), x[..., rope_dim:]), dim=-1)
 
 
 class CausalSelfAttention(nn.Module):
@@ -688,6 +693,7 @@ class CausalSelfAttention(nn.Module):
         attention_impl: str,
         use_ln_scale: bool,
         use_xsa: bool,
+        packed_qkv: bool,
     ):
         super().__init__()
         if dim % num_heads != 0:
@@ -709,27 +715,32 @@ class CausalSelfAttention(nn.Module):
             raise ValueError(f"ROPE_FRACTION must be in (0, 1], got {rope_fraction}")
         self.rope_dim = max(2, int(self.head_dim * rope_fraction) // 2 * 2)
         kv_dim = self.num_kv_heads * self.head_dim
-        self.c_q = CastedLinear(dim, dim, bias=False)
-        self.c_k = CastedLinear(dim, kv_dim, bias=False)
-        self.c_v = CastedLinear(dim, kv_dim, bias=False)
+        self.packed_qkv = packed_qkv
+        self.c_qkv = CastedLinear(dim, dim + 2 * kv_dim, bias=False) if packed_qkv else None
+        self.c_q = CastedLinear(dim, dim, bias=False) if not packed_qkv else None
+        self.c_k = CastedLinear(dim, kv_dim, bias=False) if not packed_qkv else None
+        self.c_v = CastedLinear(dim, kv_dim, bias=False) if not packed_qkv else None
         self.proj = CastedLinear(dim, dim, bias=False)
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(
             torch.full((num_heads,), qk_gain_init, dtype=torch.float32)
         )
-        self.head_scale = (
-            nn.Parameter(torch.ones(num_heads, dtype=torch.float32))
-            if use_ln_scale
-            else None
-        )
+        self.head_scale = nn.Parameter(torch.ones(num_heads, dtype=torch.float32)) if use_ln_scale else None
         self.rotary = Rotary(self.rope_dim, base=rope_base)
 
     def forward(self, x: Tensor) -> Tensor:
         bsz, seqlen, dim = x.shape
+        if self.c_qkv is not None:
+            qkv = self.c_qkv(x)
+            q_proj, k_proj, v_proj = qkv.split((dim, self.num_kv_heads * self.head_dim, self.num_kv_heads * self.head_dim), dim=-1)
+        else:
+            if self.c_q is None or self.c_k is None or self.c_v is None:
+                raise RuntimeError("QKV projections are not initialized")
+            q_proj, k_proj, v_proj = self.c_q(x), self.c_k(x), self.c_v(x)
         if self.attention_impl == "fa3":
-            q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim)
-            k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
-            v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
+            q = q_proj.reshape(bsz, seqlen, self.num_heads, self.head_dim)
+            k = k_proj.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
+            v = v_proj.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
             v_xsa = v
             q = F.rms_norm(q, (q.size(-1),))
             k = F.rms_norm(k, (k.size(-1),))
@@ -746,20 +757,14 @@ class CausalSelfAttention(nn.Module):
             y = flash_attn_3_func(q, k, v, causal=True)
             y = y.reshape(bsz, seqlen, dim)
         else:
-            q = (
-                self.c_q(x)
-                .reshape(bsz, seqlen, self.num_heads, self.head_dim)
-                .transpose(1, 2)
+            q = q_proj.reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(
+                1, 2
             )
-            k = (
-                self.c_k(x)
-                .reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
-                .transpose(1, 2)
+            k = k_proj.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(
+                1, 2
             )
-            v = (
-                self.c_v(x)
-                .reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
-                .transpose(1, 2)
+            v = v_proj.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(
+                1, 2
             )
             v_xsa = v.transpose(1, 2)
             q = F.rms_norm(q, (q.size(-1),))
@@ -815,6 +820,7 @@ class Block(nn.Module):
         attention_impl: str,
         use_ln_scale: bool,
         use_xsa: bool,
+        packed_qkv: bool,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
@@ -829,6 +835,7 @@ class Block(nn.Module):
             attention_impl,
             use_ln_scale,
             use_xsa,
+            packed_qkv,
         )
         self.mlp = MLP(dim, mlp_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
@@ -867,6 +874,8 @@ class GPT(nn.Module):
         use_ln_scale: bool,
         xsa_layers: int,
         orthogonal_init: bool,
+        packed_qkv: bool,
+        bf16_ce: bool,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -875,6 +884,7 @@ class GPT(nn.Module):
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
         self.orthogonal_init = orthogonal_init
+        self.bf16_ce = bf16_ce
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
@@ -895,6 +905,7 @@ class GPT(nn.Module):
                     attention_impl,
                     use_ln_scale,
                     i >= num_layers - xsa_layers,
+                    packed_qkv,
                 )
                 for i in range(num_layers)
             ]
@@ -945,7 +956,9 @@ class GPT(nn.Module):
                 raise RuntimeError("lm_head is required when tie_embeddings=False")
             logits_proj = self.lm_head(x)
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
-        return F.cross_entropy(logits.float(), targets, reduction="mean")
+        return F.cross_entropy(
+            logits if self.bf16_ce else logits.float(), targets, reduction="mean"
+        )
 
 
 # -----------------------------
@@ -1065,7 +1078,8 @@ def main() -> None:
     )
     log0(
         f"orthogonal_init:{int(args.orthogonal_init)} muon_weight_decay:{args.muon_weight_decay:.4f} "
-        f"xsa_layers:{args.xsa_layers} rope_fraction:{args.rope_fraction:.2f} use_ln_scale:{int(args.use_ln_scale)}"
+        f"xsa_layers:{args.xsa_layers} rope_fraction:{args.rope_fraction:.2f} use_ln_scale:{int(args.use_ln_scale)} "
+        f"packed_qkv:{int(args.packed_qkv)} bf16_ce:{int(args.bf16_ce)} persistent_muon_buffer:{int(args.persistent_muon_buffer)}"
     )
 
     # -----------------------------
@@ -1090,6 +1104,8 @@ def main() -> None:
             use_ln_scale=args.use_ln_scale,
             xsa_layers=args.xsa_layers,
             orthogonal_init=args.orthogonal_init,
+            packed_qkv=args.packed_qkv,
+            bf16_ce=args.bf16_ce,
         )
         .to(device)
         .bfloat16()
@@ -1138,6 +1154,7 @@ def main() -> None:
         momentum=args.muon_momentum,
         backend_steps=args.muon_backend_steps,
         weight_decay=args.muon_weight_decay,
+        persistent_buffer=args.persistent_muon_buffer,
     )
     for group in optimizer_muon.param_groups:
         group["base_lr"] = args.matrix_lr

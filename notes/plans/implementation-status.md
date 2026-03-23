@@ -22,10 +22,10 @@ Status labels:
 |---|---|---|
 | int5/int6 + zstd-22 | `pending` | not started yet |
 | 11L + 3x MLP | `screened` | isolated `60s` screen looked bad |
-| XSA on last 4 layers | `pending` | env-gated support being added for screening |
-| orthogonal init | `pending` | env-gated support being added for screening |
-| Muon weight decay | `pending` | env-gated support being added for screening |
-| partial RoPE + LN scale | `pending` | env-gated support being added for screening |
+| XSA on last 4 layers | `screened` | first `60s` screen looked worse on Hyperbolic |
+| orthogonal init | `screened` | first `60s` screen improved pre-quant val_bpb but worsened final exact bpb |
+| Muon weight decay | `screened` | `0.02` and `0.04` both looked slightly worse in the first `60s` |
+| partial RoPE + LN scale | `screened` | first `60s` screen looked clearly worse on Hyperbolic |
 | BigramHash (4096) | `pending` | not implemented yet |
 | SmearGate | `pending` | not implemented yet |
 | SWA tight | `pending` | not implemented yet |

@@ -35,6 +35,11 @@ not have to reconstruct the story from terminal scrollback.
 | 2026-03-23 | Hyperbolic `1x H100 SXM5` | research_60s | `MUON_MOMENTUM=0.99 MUON_BACKEND_STEPS=4` | `60s` | `210` | `286.74 ms` | `2.16443051` | `logs/research_1xh100/research_260323_optim_mom99_ns4.log` | no rescue; still worse than control |
 | 2026-03-23 | Hyperbolic `1x H100 SXM5` | promoted_600s | `ATTENTION_IMPL=fa3 FUSE_BATCH_TRANSFER=1 MUON_MOMENTUM=0.99` | `600s` | cancelled | cancelled | cancelled | `/root/parameter-golf/logs/hyperbolic_strict/candidate_best_mom99_260323_0551.log` | cancelled after deciding pure hyperparameter ideas should get repeated `60s` screens instead |
 | 2026-03-23 | Hyperbolic `1x H100 SXM5` | research_60s_repeat | control vs `MUON_MOMENTUM=0.99` across 5 seeds | `5x60s` each | `206-208` | control `290.96 ms`, mom99 `290.58 ms` | control `2.091251822`, mom99 `2.087438582` | `notes/research/timings/data/muon-momentum-repeat-2026-03-23.json` | repeated short screens still favor `MUON_MOMENTUM=0.99`, but only modestly |
+| 2026-03-23 | Hyperbolic `1x H100 SXM5` | research_60s | `ORTHOGONAL_INIT=1` | `60s` | `207` | `290.44 ms` | `2.09883101` | `logs/research_1xh100/research_260323_batch1_orthogonal_init.log` | better pre-quant val, but worse final exact bpb than the matched control |
+| 2026-03-23 | Hyperbolic `1x H100 SXM5` | research_60s | `MUON_WEIGHT_DECAY=0.02` | `60s` | `206` | `291.33 ms` | `2.09949172` | `logs/research_1xh100/research_260323_batch1_muon_wd_002.log` | slightly slower and worse than matched control |
+| 2026-03-23 | Hyperbolic `1x H100 SXM5` | research_60s | `MUON_WEIGHT_DECAY=0.04` | `60s` | `206` | `291.40 ms` | `2.09876479` | `logs/research_1xh100/research_260323_batch1_muon_wd_004.log` | also worse than matched control |
+| 2026-03-23 | Hyperbolic `1x H100 SXM5` | research_60s | `XSA_LAYERS=4` | `60s` | `202` | `298.05 ms` | `2.11906917` | `logs/research_1xh100/research_260323_batch1_xsa4.log` | clearly worse on both early score and speed in the first screen |
+| 2026-03-23 | Hyperbolic `1x H100 SXM5` | research_60s | `ROPE_FRACTION=0.5 USE_LN_SCALE=1` | `60s` | `202` | `298.23 ms` | `2.16055601` | `logs/research_1xh100/research_260323_batch1_rope50_ln.log` | clear negative first screen |
 
 ## Current lessons
 
@@ -49,6 +54,11 @@ not have to reconstruct the story from terminal scrollback.
   repeated `60s` runs before any future `600s` promotion.
 - Repeating control vs `MUON_MOMENTUM=0.99` across 5 seeds still favors `0.99`, but the
   edge is small enough that it should be treated as a mild signal, not a lock.
+- Orthogonal init is mixed so far: better pre-quant short-run validation but worse final
+  exact `val_bpb` in the first screen.
+- Muon weight decay at `0.02` and `0.04` does not look good in the first `60s` screens.
+- XSA4 and partial-RoPE+LN-scale both looked clearly negative in the first Hyperbolic
+  `60s` screens, so they should not be promoted without a stronger reason.
 - `MUON_BACKEND_STEPS=4` improves speed but appears to hurt early quality enough that
   it should not be promoted alone.
 - For future hyperparameter-only ideas, the default should be multiple `60s` repeats

@@ -107,6 +107,18 @@ for variant in "${variant_list[@]}"; do
     rope50_ln)
       run_variant rope50_ln ROPE_FRACTION=0.5 USE_LN_SCALE=1
       ;;
+    bf16_ce)
+      run_variant bf16_ce BF16_CE=1
+      ;;
+    persistent_muon)
+      run_variant persistent_muon PERSISTENT_MUON_BUFFER=1
+      ;;
+    packed_qkv)
+      run_variant packed_qkv PACKED_QKV=1
+      ;;
+    packed_qkv_persistent)
+      run_variant packed_qkv_persistent PACKED_QKV=1 PERSISTENT_MUON_BUFFER=1
+      ;;
     *)
       printf 'Unknown variant: %s\n' "$variant" >&2
       exit 1

@@ -46,11 +46,15 @@ def expand_inputs(patterns: list[str]) -> list[Path]:
         matched = sorted(Path().glob(pattern))
         if matched:
             for path in matched:
+                if path.is_file() and path.name.endswith("_summary.log"):
+                    continue
                 if path.is_file() and path not in seen:
                     paths.append(path)
                     seen.add(path)
         else:
             p = Path(pattern)
+            if p.is_file() and p.name.endswith("_summary.log"):
+                continue
             if p.is_file() and p not in seen:
                 paths.append(p)
                 seen.add(p)
