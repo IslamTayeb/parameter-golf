@@ -36,10 +36,10 @@ Status labels:
 
 | Item | Status | Notes |
 |---|---|---|
-| DDP bucket tuning + `static_graph` | `pending` | not started yet |
+| DDP bucket tuning + `static_graph` | `screened` | first `8x` screen was clearly worse on Hyperbolic |
 | Turbo-Muon / 4 NS steps | `screened` | faster at `60s`, but clearly worse early bpb |
-| packed QKV | `screened` | faster in `60s`, but worse in quality and worse when promoted in combo |
-| persistent Muon buffer | `screened` | neutral-to-worse alone; helped speed in packed-QKV combo but not final bpb |
+| packed QKV | `screened` | faster on both `1x` and `8x`, but still worse in quality |
+| persistent Muon buffer | `screened` | neutral-to-worse alone; helped speed in packed-QKV combos but not final bpb |
 | verify softcap+CE fusion | `pending` | not started yet |
 | BF16 cross entropy | `screened` | first `60s` screen looked slightly worse on Hyperbolic |
 | async prefetch | `pending` | not started yet |

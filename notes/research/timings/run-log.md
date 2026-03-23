@@ -48,6 +48,17 @@ not have to reconstruct the story from terminal scrollback.
 | 2026-03-23 | Hyperbolic `1x H100 SXM5` | research_60s | `PACKED_QKV=1 PERSISTENT_MUON_BUFFER=1 MUON_MOMENTUM=0.99` | `60s` | `212` | `282.99 ms` | `2.10529719` | `logs/research_1xh100/research_260323_batch3_packed_persist_mom99.log` | still worse than control despite speed |
 | 2026-03-23 | Hyperbolic `1x H100 SXM5` | research_60s | `ORTHOGONAL_INIT=1 PACKED_QKV=1 PERSISTENT_MUON_BUFFER=1 MUON_MOMENTUM=0.99` | `60s` | `212` | `283.08 ms` | `2.07125597` | `logs/research_1xh100/research_260323_batch3_orth_packed_persist_mom99.log` | strongest short-run combo signal |
 | 2026-03-23 | Hyperbolic `1x H100 SXM5` | promoted_600s | `ORTHOGONAL_INIT=1 PACKED_QKV=1 PERSISTENT_MUON_BUFFER=1 MUON_MOMENTUM=0.99` | `600s` | `2116` | `283.66 ms` | `1.30109663` | `logs/hyperbolic_strict/candidate_combo_600_260323_0851.log` | faster than strict best stack, but worse final score |
+| 2026-03-23 | Hyperbolic `8x H100 SXM5` | strict_60s | official naive baseline snapshot | `60s` | `1375` | `43.67 ms` | `1.32982923` | `logs/hyperbolic_8xh100/strict8x_naive_260323_1552.log` | 8x strict baseline reference |
+| 2026-03-23 | Hyperbolic `8x H100 SXM5` | research_60s | control (`fa3 + fused`) | `60s` | `1570` | `38.24 ms` | `1.31779916` | `logs/hyperbolic_8xh100/research8x_260323_batch1_control.log` | current best 8x control; beats strict naive baseline |
+| 2026-03-23 | Hyperbolic `8x H100 SXM5` | research_60s | `MUON_MOMENTUM=0.99` | `60s` | `1572` | `38.18 ms` | `1.32029064` | `logs/hyperbolic_8xh100/research8x_260323_batch1_mom99.log` | tiny speed win, worse score |
+| 2026-03-23 | Hyperbolic `8x H100 SXM5` | research_60s | DDP static/bucket-view/small-bucket | `60s` | `1391` | `43.15 ms` | `1.33135697` | `logs/hyperbolic_8xh100/research8x_260323_batch1_ddp_static.log` | clear negative DDP screen |
+| 2026-03-23 | Hyperbolic `8x H100 SXM5` | research_60s | DDP static + `MUON_MOMENTUM=0.99` | `60s` | `1395` | `43.05 ms` | `1.33064462` | `logs/hyperbolic_8xh100/research8x_260323_batch1_ddp_static_mom99.log` | still clearly negative |
+| 2026-03-23 | Hyperbolic `8x H100 SXM5` | research_60s | `PACKED_QKV=1 PERSISTENT_MUON_BUFFER=1` | `60s` | `1580` | `38.00 ms` | `1.32519236` | `logs/hyperbolic_8xh100/research8x_260323_batch1_packed_qkv_persistent.log` | faster, but worse than control |
+| 2026-03-23 | Hyperbolic `8x H100 SXM5` | research_60s | DDP static + packed+persist | `60s` | `1437` | `41.78 ms` | `1.33306583` | `logs/hyperbolic_8xh100/research8x_260323_batch1_ddp_static_packed_persist.log` | negative |
+| 2026-03-23 | Hyperbolic `8x H100 SXM5` | research_60s | `ORTHOGONAL_INIT=1` | `60s` | `1573` | `38.14 ms` | `1.32213446` | `logs/hyperbolic_8xh100/research8x_260323_batch2_orth.log` | slightly faster, still worse than control |
+| 2026-03-23 | Hyperbolic `8x H100 SXM5` | research_60s | `ORTHOGONAL_INIT=1 MUON_MOMENTUM=0.99` | `60s` | `1573` | `38.16 ms` | `1.32117140` | `logs/hyperbolic_8xh100/research8x_260323_batch2_orth_mom99.log` | still worse than control |
+| 2026-03-23 | Hyperbolic `8x H100 SXM5` | research_60s | `PACKED_QKV=1 PERSISTENT_MUON_BUFFER=1 MUON_MOMENTUM=0.99` | `60s` | `1579` | `38.03 ms` | `1.32571842` | `logs/hyperbolic_8xh100/research8x_260323_batch2_packed_persist_mom99.log` | faster, worse score |
+| 2026-03-23 | Hyperbolic `8x H100 SXM5` | research_60s | `ORTHOGONAL_INIT=1 PACKED_QKV=1 PERSISTENT_MUON_BUFFER=1 MUON_MOMENTUM=0.99` | `60s` | `1579` | `38.02 ms` | `1.32625510` | `logs/hyperbolic_8xh100/research8x_260323_batch2_orth_packed_persist_mom99.log` | no 8x promotion; still worse than control |
 
 ## Current lessons
 
@@ -74,6 +85,8 @@ not have to reconstruct the story from terminal scrollback.
   found to hold up at `600s`.
 - The strongest `60s` combo signal from the third batch did not survive a `600s`
   confirmation run, so short-run combo wins still need careful promotion discipline.
+- On the `8x H100` box, the simple `fa3 + fused` control also beat every tested
+  `60s` variant, including the DDP-tuning screen and the orthogonal/packed combos.
 - `MUON_BACKEND_STEPS=4` improves speed but appears to hurt early quality enough that
   it should not be promoted alone.
 - For future hyperparameter-only ideas, the default should be multiple `60s` repeats

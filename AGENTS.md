@@ -30,8 +30,8 @@ requirements.txt        # Python deps: torch numpy sentencepiece tqdm etc.
 ### Key Files You Edit
 
 - **`train_gpt.py`** — The main training script. Fork this into your submission folder.
-  Must stay under 1500 lines. All model architecture, training loop, quantization, and
-  evaluation logic lives in this single file.
+  All model architecture, training loop, quantization, and evaluation logic lives in
+  this single file.
 - Submissions go into `records/track_10min_16mb/YYYY-MM-DD_YourRunName/`.
 
 ### Files You Do NOT Edit
@@ -217,7 +217,6 @@ at the top of `train_gpt.py`). Key ones:
 
 - **Single-file scripts.** `train_gpt.py` contains everything: model, optimizer,
   data loading, quantization, evaluation. Keep it that way for submissions.
-- **Max 1500 lines** per script (hard rule stated in the file docstring).
 - **Python 3.10+** with `from __future__ import annotations`.
 - **Type hints** on function signatures using modern syntax (`tuple[...]`, `X | None`).
 - **Imports**: stdlib first, then numpy/torch/sentencepiece, grouped by blank lines.
