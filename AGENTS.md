@@ -156,6 +156,20 @@ RUN_ID=aws_best_1xh100 DATA_PATH=./data/datasets/fineweb10B_sp1024 \
   VAL_LOSS_EVERY=0 torchrun --standalone --nproc_per_node=1 train_gpt.py
 ```
 
+### 1xH100 quick research ablations
+
+```bash
+RUN_PREFIX=research_1xh100 MAX_WALLCLOCK_SECONDS=60 \
+  ./tools/run_1xh100_research_ablations.sh
+```
+
+- For new ideas, prefer quick `1x H100` screening runs with about `60s` of
+  training wallclock and final eval left on.
+- Use these short runs to rank ideas before spending `600s` scored runs on
+  them.
+- Reserve full `10 min` runs for strict baseline checks, best-stack checks, and
+  serious candidate configs.
+
 ## External Tracking
 
 - `tracker.md` is a local snapshot from an external OpenClaw monitoring instance
