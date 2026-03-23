@@ -167,6 +167,10 @@ RUN_PREFIX=research_1xh100 MAX_WALLCLOCK_SECONDS=60 \
   training wallclock and final eval left on.
 - Use these short runs to rank ideas before spending `600s` scored runs on
   them.
+- For pure hyperparameter ideas, prefer many short `60s` repeats before
+  promoting any winner to a `600s` confirmation run.
+- A good default mental model is that one `600s` budget is usually better spent
+  as about ten `60s` screens when the only thing changing is hyperparameters.
 - Reserve full `10 min` runs for strict baseline checks, best-stack checks, and
   serious candidate configs.
 
