@@ -183,6 +183,19 @@ RUN_PREFIX=research_1xh100 MAX_WALLCLOCK_SECONDS=60 \
   They are useful for prioritization, but not as something to edit in the main
   modeling workflow unless the user explicitly asks.
 
+## Notes Workflow
+
+- `notes/plans/` holds active work. Start there when deciding what to do next.
+- `notes/journal/` holds dated checkpoints, reversals, and retrospectives.
+- `notes/research/` holds reusable analysis, comparisons, literature, and setup
+  guides.
+- `notes/archive/` holds stale or superseded scratch material.
+- `notes/README.md` defines the stable workflow. Do not turn it into a manual
+  file index.
+- When work meaningfully changes, update the relevant plan note and add a journal
+  entry if the checkpoint is worth preserving.
+- Keep raw logs in `logs/`; keep durable summaries in `notes/research/timings/`.
+
 ## Hyperparameters
 
 All hyperparameters are set via **environment variables** (see `Hyperparameters` class

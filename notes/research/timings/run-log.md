@@ -16,14 +16,14 @@ not have to reconstruct the story from terminal scrollback.
 
 | Date | Provider / HW | Type | Config | Wallclock | Stop step | `step_avg` | Final exact `val_bpb` | Source | Takeaway |
 |---|---|---|---|---:|---:|---:|---:|---|---|
-| 2026-03-21 | RunPod `1x H100 SXM` | systems_sweep | baseline | n/a | n/a | `520.18 ms` | n/a | `notes/260321_consolidated.md` | baseline reference for the first H100 systems pass |
-| 2026-03-21 | RunPod `1x H100 SXM` | systems_sweep | `FUSE_BATCH_TRANSFER=1` | n/a | n/a | `332.15 ms` | n/a | `notes/260321_consolidated.md` | large H100-side systems win on that provider |
-| 2026-03-21 | RunPod `1x H100 SXM` | systems_sweep | `ATTENTION_IMPL=fa3` | n/a | n/a | `509.85 ms` | n/a | `notes/260321_consolidated.md` | FA3 alone is real but small |
-| 2026-03-21 | RunPod `1x H100 SXM` | systems_sweep | `ATTENTION_IMPL=fa3 FUSE_BATCH_TRANSFER=1` | n/a | n/a | `313.38 ms` | n/a | `notes/260321_consolidated.md` | best measured 1x systems combo on RunPod |
-| 2026-03-21 | AWS `1x L40S` | systems_sweep | baseline | n/a | n/a | `1012.35 ms` | n/a | `notes/260321_consolidated.md` | slower-GPU baseline |
-| 2026-03-21 | AWS `1x L40S` | systems_sweep | `ATTENTION_IMPL=fa3 FUSE_BATCH_TRANSFER=1` | n/a | n/a | `982.775 ms` | n/a | `notes/260321_consolidated.md` | only modest gain on L40S |
-| 2026-03-22 | Hyperbolic `1x H100 SXM5` | strict_like | `sdpa FUSE_BATCH_TRANSFER=0` | `600s` | `1801` | `333.20 ms` | `1.30554523` | `notes/260322_hyperbolic_1xh100.md` | current trainer, not exact official baseline snapshot |
-| 2026-03-22 | Hyperbolic `1x H100 SXM5` | strict_like | `sdpa FUSE_BATCH_TRANSFER=1` | `600s` | `1801` | `333.16 ms` | `1.30572953` | `notes/260322_hyperbolic_1xh100.md` | fused transfer alone is noise on this provider |
+| 2026-03-21 | RunPod `1x H100 SXM` | systems_sweep | baseline | n/a | n/a | `520.18 ms` | n/a | `notes/research/systems-consolidated.md` | baseline reference for the first H100 systems pass |
+| 2026-03-21 | RunPod `1x H100 SXM` | systems_sweep | `FUSE_BATCH_TRANSFER=1` | n/a | n/a | `332.15 ms` | n/a | `notes/research/systems-consolidated.md` | large H100-side systems win on that provider |
+| 2026-03-21 | RunPod `1x H100 SXM` | systems_sweep | `ATTENTION_IMPL=fa3` | n/a | n/a | `509.85 ms` | n/a | `notes/research/systems-consolidated.md` | FA3 alone is real but small |
+| 2026-03-21 | RunPod `1x H100 SXM` | systems_sweep | `ATTENTION_IMPL=fa3 FUSE_BATCH_TRANSFER=1` | n/a | n/a | `313.38 ms` | n/a | `notes/research/systems-consolidated.md` | best measured 1x systems combo on RunPod |
+| 2026-03-21 | AWS `1x L40S` | systems_sweep | baseline | n/a | n/a | `1012.35 ms` | n/a | `notes/research/systems-consolidated.md` | slower-GPU baseline |
+| 2026-03-21 | AWS `1x L40S` | systems_sweep | `ATTENTION_IMPL=fa3 FUSE_BATCH_TRANSFER=1` | n/a | n/a | `982.775 ms` | n/a | `notes/research/systems-consolidated.md` | only modest gain on L40S |
+| 2026-03-22 | Hyperbolic `1x H100 SXM5` | strict_like | `sdpa FUSE_BATCH_TRANSFER=0` | `600s` | `1801` | `333.20 ms` | `1.30554523` | `notes/journal/2026-03-22-hyperbolic-1xh100.md` | current trainer, not exact official baseline snapshot |
+| 2026-03-22 | Hyperbolic `1x H100 SXM5` | strict_like | `sdpa FUSE_BATCH_TRANSFER=1` | `600s` | `1801` | `333.16 ms` | `1.30572953` | `notes/journal/2026-03-22-hyperbolic-1xh100.md` | fused transfer alone is noise on this provider |
 | 2026-03-23 | Hyperbolic `1x H100 SXM5` | strict | official naive baseline snapshot | `600s` | `1797` | `334.02 ms` | `1.30559449` | `logs/hyperbolic_strict/strict_naive_260323_0329.log` | first strict exact-baseline run on Hyperbolic |
 | 2026-03-23 | Hyperbolic `1x H100 SXM5` | strict | `ATTENTION_IMPL=fa3 FUSE_BATCH_TRANSFER=1` | `600s` | `2064` | `290.76 ms` | `1.29478906` | `logs/hyperbolic_strict/strict_best_260323_0343.log` | strict best stack beats official baseline by about `0.0108 bpb` |
 | 2026-03-23 | Hyperbolic `1x H100 SXM5` | research_60s | control (`9L 2x`, `fa3`, fused) | `60s` | `207` | `290.41 ms` | `2.09289914` | `logs/research_1xh100/research_260323_0521_control.log` | control for the fast research sweep |

@@ -2,7 +2,8 @@
 
 Sources: full-text reading of 8 key papers (22 total verified), all 174 scored
 competition submissions from `tracker.md`, empirical systems data from
-`notes/260321_consolidated.md`, and exact parameter counts from `train_gpt.py`.
+`notes/research/systems-consolidated.md`, and exact parameter counts from
+`train_gpt.py`.
 
 **Important framing from the consolidated notes (line 283):** "papers are useful for
 scouting ideas, but the repo's own measurements should dominate prioritization." All
@@ -723,13 +724,13 @@ Every number above is speculative. The only way to know is to measure.
 | `TORCH_COMPILE_MODE=max-autotune` | Crashes | Our systems testing |
 | `PIN_SHARD_MEMORY=1` | Noise (0.0%) | Our systems testing |
 | `SDPA_BACKEND=cudnn` | Slightly worse (-1%) | Our systems testing |
-| `FUSE_BATCH_TRANSFER=1` on Hyperbolic H100 | Noise (0.01%) | `notes/260322_hyperbolic_1xh100.md` |
+| `FUSE_BATCH_TRANSFER=1` on Hyperbolic H100 | Noise (0.01%) | `notes/journal/2026-03-22-hyperbolic-1xh100.md` |
 
 ---
 
 ## 12. Hyperbolic H100 Negative Result — Platform Sensitivity
 
-**Critical finding from `notes/260322_hyperbolic_1xh100.md`:**
+**Critical finding from `notes/journal/2026-03-22-hyperbolic-1xh100.md`:**
 
 The `FUSE_BATCH_TRANSFER=1` optimization that showed -36% step time on RunPod 1xH100
 showed **0.01% (noise)** on Hyperbolic 1xH100 SXM5. Same GPU class, completely
@@ -940,7 +941,7 @@ between SWA and EMA from a pure tok/s perspective.
 
 ## 15. Modded-NanoGPT Evidence — Revises Our Kernel Analysis
 
-`nanogpt.md` documents 77 records of the NanoGPT speedrun on the same hardware (8xH100
+`notes/research/modded-nanogpt.md` documents 77 records of the NanoGPT speedrun on the same hardware (8xH100
 SXM) with a very similar architecture (dim=768 vs our 512, same Muon, same relu^2 MLP,
 same Newton-Schulz). This is the strongest external evidence we have for what systems
 optimizations actually work at our scale.

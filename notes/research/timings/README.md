@@ -6,7 +6,8 @@ work.
 ## How to use it
 
 - Keep raw local command outputs and full logs under `logs/`.
-- Record the important numbers and the lesson in `notes/timings/run_log.md`.
+- Record the important numbers and the lesson in
+  `notes/research/timings/run-log.md`.
 - Use one row per run or per run variant when the numbers are worth preserving.
 
 ## What each logged run should include
